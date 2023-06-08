@@ -155,7 +155,7 @@ EC2からインスタンスを停止する
 ```sh
 mysql --version
 ```
-
+実行結果  
 ![mariaDB](images/version_maria.png)
 
 
@@ -179,7 +179,7 @@ curl -fsSL https://raw.githubusercontent.com/MasatoshiMizumoto/raisetech_documen
 ```sh
 mysql --version
 ```
-
+実行結果  
 ![mysql8.0](images/version_mysql8.0.png)
 
 変更できたか調べる。
@@ -273,6 +273,7 @@ ruby -v
 ```sh
 rvm get stable
 ```
+実行結果  
 ![rvm get stable](images/rvm_get_stable.png)
 
 インストールの準備
@@ -284,7 +285,8 @@ rvm get stable
 ```sh
 rvm install 3.1.2
 ```
-![rvm install 3.1.2](images/rvm_install3.1.2_success.png)
+実行結果  
+![rvm install 3.1.2](images/rvm_install_3.1.2_success.png)
 
 ruby がインストールされる
 <br/>
@@ -327,7 +329,8 @@ rails のバージョン確認(入っていない)
 ```sh
 bin/setup
 ```
-![bin/setup](images/bin/setup_success.png)
+実行結果  
+![bin/setup](images/bin_setup_success.png)
 
 実行すると赤文字が大量に出てくる。railsアプリに不足しているものを教えてくれている。  
 放置していると緑文字が大量に出てくる。多分補ってくれてるんだと思われる。
@@ -395,12 +398,14 @@ bin/cloud9_dev の権限が変更されたか確認
 ```sh
 bin/cloud9_dev
 ```
+実行結果  
+![bin/cloud9_dev](images/bin_cloud9_dev_success.png)
 
-![bin/cloud9_dev](images/bin/cloud9_dev_success.png)
 Listening on http://0.0.0.0:8080 で成功（？）
 
 画面上部の preview から preview running application を選択すると  
 Blocked host: と書かれた赤いページが表示される。  
+実行結果  
 ![Blocked host](images/ActiveRecord.png)
 
 スクロールしてconfig.hosts << “URL”　の部分をコピー  
@@ -425,7 +430,7 @@ bin/cloud9_dev
 <br/>
 <br/>
 <br/>
-
+実行結果  
 ![sample](images/sample.png)
 起動完了
 <br/>
