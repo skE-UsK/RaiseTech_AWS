@@ -52,7 +52,7 @@ IPアドレス：00001010.00000000.00010100.00000000
 サブネットマスク：11111111.11111111.11111111.00000000  
 ネットワーク部：ホスト部  
 00001010.00000000.00010100：00000000  
-![map](images/makSubnet/map.png)  
+![map](images/makeSubnet/map.png)  
 サブネットが２つできた。
 
 ### [サブネット](https://docs.aws.amazon.com/ja_jp/vpc/latest/userguide/configure-subnets.html)
@@ -79,25 +79,25 @@ VPC とインターネットとの間の通信を可能にする VPC コンポ�
 <br/>
 
 ## ルートテーブルの編集  
-![１](images/rootSettig/1.png)  
+![１](images/routeSetting/1.png)  
 0.0.0.0/0はすべてのアドレスの意味。  
-![map1](images/rootSetting/map1.png)  
+![map1](images/routeSetting/map1.png)  
 プライベートサブネットからもネットワーク接続へ伸びているのがおかしいと思う。  
-![２](images/rootSettig/2.png)  
+![２](images/routeSetting/2.png)  
 パブリックサブネットのパブリック IPv4 アドレスの自動割り当てを有効化にした。  
 これをしないとインターネットに接続できないらしいので、プライベートサブネットではインターネットに接続できない？  
 
 どうやら今回のように複数のサブネットが存在して、それぞれ通信ルートが異なる場合は、サブネットを作った時に勝手にできるルートテーブルは使用しないで、新しくルートテーブルを作成して割り当てた方が良いらしい。  
-![３](images/rootSettig/3.png)  
+![３](images/routeSetting/3.png)  
 新規に作って、ルートを編集する。（先ほどの編集は削除する。自動割り当てはそのまま）  
-![map2](images/rootSetting/map2.png)  
+![map2](images/routeSetting/map2.png)  
 新しくルートテーブルが作成された。  
 
-![４](images/rootSettig/4.png)  
+![４](images/routeSetting/4.png)  
 アクションからサブネットの関連付けを選択して  
-![５](images/rootSettig/5.png)  
+![５](images/routeSetting/5.png)  
 IGWに繋げる（パブリックサブネットにしたい）サブネットを選択する。  
-![map3](images/rootSettig/3.png)  
+![map3](images/routeSetting/map3.png)  
 プライベートサブネットからネットワーク接続への波線が消えた。
 
 ### [ルートテーブル](https://docs.aws.amazon.com/ja_jp/vpc/latest/userguide/VPC_Route_Tables.html)
