@@ -159,7 +159,7 @@ ap-northeast-1a
 10.0.10.0/24 パブリックサブネット  
 ap-northeast-1d  
 10.0.20.0/24 プライベートサブネット  
-![map](images/makeEC2/map.png)  
+![map](images/makeDB/map.png)  
 
 
 ![１](images/makeDB/1.png)  
