@@ -1,16 +1,298 @@
 # `第５回課題`
 ## 課題
-- EC2 上にサンプルアプリケーションをデプロイして、動作させてください。
-  - サンプルは第 3 回で案内済みのものを使ってください。
-  - まずは組み込みサーバーだけで、動作したらサーバーアプリケーションを分けて動くかチャレンジしてみましょう。
-- 動作したら、ELB(ALB)を追加してみましょう。
-- ELB を加えて動作が確認できたら、さらに S3 を追加してみましょう。S3 をどのように使うかはお任せします。
-  - ここまでが問題無く動作したら、その環境を構成図に書き起こしてください。
-- 構成図の書き方動画をポータルサイトに公開しています。
-- 以上の結果を、正しく動作したことを示す資料（画像など）を添えて報告してください。
-- PR で報告いただいた方には PR 上でコメントします。
+- EC2 上にサンプルアプリケーションをデプロイする
+  - WEbサーバー(Nginx)とAPサーバー(Unicorn)（とデータベースサーバー）を用いたWeb三層構造で動作させる
+- ELBを追加する
+- S3 を追加する
+- 構成図の作成
+- 以上の結果を、正しく動作したことを示す資料（画像など）を添えて報告する
 <br/>
 <br/>
 <br/>
 
-## 前提条件
+## はじめに
+lecture05-1の段階では学習の都合上、把握しやすいように、最小構成になるようパブリックサブネットとプライベートサブネットを異なるAZ（aとd）に配置していた。  
+しかし、機能に加わってくるELBはサーバーの負荷を分散させる用途で用いられる機能で、基本的にふたつ以上のEC2が使われる。EC2がひとつの時でも使われることがあるが、それは将来的に拡張を考慮した構成であるべきであり、拡張性を考えるのなら、ねじれたような今の構成は気持ちが悪い。  
+なので、パブリックサブネットとプライベートサブネットを同じAZ内（aとa）に配置した。それに伴ってRDS仕様の都合上、空のサブネットを持つAZ（d）を作成した。RDSのサブネットグループは３つあるサブネットのうち、パブリックサブネットを除いた２つからなる。  
+具体的にはAZ-a内の10.0.10.0/24をパブリックサブネット、10.0.20.0/24をプライベートサブネットとし、拡張する場合は別のAZを作成して10.0.11.0/24をパブリックサブネット、10.0.21.0/24とすればわかりやすいかなと考えた。
+<br/>
+<br/>
+<br/>
+
+## RDSについて
+lecture05-1のサブネット構成を変更するにあたって、RDSを削除して作り直した。  
+その過程で、**RDSが課金されないように停止していることを忘れていたのにも関わらず**サンプルアプリケーションが動作していたことに気づいた。これにより**使用しているデータベースがRDSを使っていない**ことが判明した。
+
+lecture03でよくわからないままにしていた datebase.yml について調べる必要が出てきたので調べたら default を変更する必要があるらしいので編集した。
+
+### datebase.ymlの変更箇所
+- username を root から admin へ変更
+- host: RDSのエンドポイント を追加
+
+EC2上のMySQLのパスワードをRDSのパスワードと同じものにしてしまっていたので、変更した。
+<br/>
+<br/>
+<br/>
+## Nginxのインストール
+amazon-linux-extrasがインストールされているか確認する
+```sh
+which amazon-linux-extras
+```
+されていなければ下記コマンドを実行する
+```sh
+sudo yum install -y amazon-linux-extras
+```
+利用可能なトピックを表示する
+```sh
+amazon-linux-extras
+```
+目的のトピックを有効にする。今回はnginx1
+```sh
+sudo amazon-linux-extras install -y nginx1
+```
+確認
+```sh
+nginx -v
+```
+初期設定ファイルのバックアップ
+```sh
+sudo cp -a /etc/nginx/nginx.conf /etc/nginx/nginx.conf.back
+```
+インスタンス起動時にNginxの自動起動有効
+```sh
+sudo systemctl enable nginx
+```
+サービスステータス表示  
+Nginxの起動
+```sh
+sudo nginx
+```
+パブリック IPv4 アドレス　をアドレスバーに入れるとWelcome to nginx!がみられる。  
+![1](images/nginx/1.png)  
+<br/>
+<br/>
+
+### Nginxメモ
+etc/nginx/nginx.conf はNginxの設定ファイル  
+```sh
+http {
+	略
+	 server {
+		略
+		root         /usr/share/nginx/html;
+	}
+}
+```
+rootに書かれているパスの場所を参照して、そこにあるindex.html ファイルを参照して表示している。  
+![2](images/nginx/2.png)  
+少し書き加えてみた。    
+日本語を表示するには<head>と</head>の間に
+```sh
+ <meta charset="UTF-8">
+```
+を追加する必要がある。
+<br/>
+<br/>
+<br/>
+
+## Pumaの設定
+ここでは、NginxとPumaを接続するために必要なソケットを生成するための設定を行う。  
+この際、ソケットがhomeより下に置いてあるとNginxと接続できない。  
+
+AWSにログインすると /home/ec2-user にいる。  
+サンプルアプリを /home/ec2-user の下で gitclone していた場合、サンプルアプリの置かれている場所がhomeより下になっている。  
+
+```sh
+sudo mv raisetech-live8-sample-app/ /opt
+```  
+ソケットがhomeより上にあればいいので、サンプルアプリごと動かす必要はないらしいが、homeの下に置く必要もないので、参考にしたサイトと同じようにサンプルアプリごと動かした。optに置いていたため、optに置いた。(optはアプリケーションをおくディレクトリ)  
+
+これから編集する/opt/raisetech-live8-sample-app/config にあるpuma.rbの初期設定をバックアップしておく。
+```sh
+sudo cp -a config/puma.rb config/puma.rb.back
+```
+
+puma.rb を 編集する。(sudo vim)
+
+> bind "unix:///home/ec2-user/raisetech-live8-sample-app/tmp/sockets/puma.sock"
+
+上記を下記に変更するとその位置にソケットが生成される。
+
+> bind "unix:///opt/raisetech-live8-sample-app/tmp/sockets/puma.sock"
+
+このソケットが生成される位置さえhomeより上であれば良いため、アプリをhomeより下に置きたい場合はソケットの生成場所を/tmp/sockets/とかに設定すれば良い。（tmpは一時的にデータを保存する場所）
+
+下記コマンドで実行すると
+```sh
+rails s
+```
+ > * Listening on unix:///opt/raisetech-live8-sample-app/tmp/sockets/puma.sock
+
+と表示される。  
+起動中にその場所へ見に行くとpuma.sockが生成されていることが確認できる。  
+停止すると勝手に消える。  
+<br/>
+
+### その他
+> port ENV.fetch("PORT") { 3000 }
+
+をコメントアウトしなければいけないみたいな記事もあるが、コメントアウトしなくてもできた。  
+その記事内でNginxのバグかもと書かれていたので、修正されたのかも？  
+
+ソケットが生成される箇所を指定する際に
+> bind "unix:///opt/raisetech-live8-sample-app/tmp/sockets/puma.sock"
+
+ではなく
+
+> unix://#{Rails.root}/tmp/sockets/puma.sock
+
+でもいける。  
+質問したら式展開と呼ばれることがわかった。  
+調べたらruby特有の記述らしく、いま必要な知識というわけでもないので調べるのをやめた。  
+どこかに定義されていると思われる。  
+<br/>
+<br/>
+<br/>
+
+## Nginxの設定  
+Nginxは、「Nginx全体に関する設定」と「アプリごとに行う設定」がある。  
+
+ /etc/nginx/ にある nginx.conf でNginx全体の設定が行える。  
+アプリごとの設定は /etc/nginx/conf.d/ に新しく.conf ファイルを作成して設定する。  
+
+サンプルアプリの設定を行うため
+/etc/nginx/conf.d/ に新しく[setech-live8-sample-app.conf](file/raisetech-live8-sample-app.conf) を作成して設定した。  
+
+### [setech-live8-sample-app.conf](file/raisetech-live8-sample-app.conf) 
+> server unix:///opt/raisetech-live8-sample-app/tmp/sockets/puma.sock fail_timeout=0;
+
+生成されるpuma.sockを参照する。
+
+> listen 80;
+
+80はHTTPなので443にしたらHTTPSになるのかと思ったが、HTTPで443ポートを使うだけだった。
+HTTPSにするには別の方法が必要らしい。 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<br/>
+<br/>
+<br/>
+
+設定ファイルを作成したら以下コマンドで構文チェックをする。
+```sh
+sudo nginx -t
+```
+> nginx: the configuration file /etc/nginx/nginx.conf syntax is ok  
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+
+と出てきたら構文レベルの間違いはないため、Nginxの設定を反映させる。  
+反映させる方法をいくつか見つけた。
+1. Nginxを停止して、Nginxを起動する
+1. Nginxを再起動する
+1. Nginxをリロードする
+
+#### Nginxを停止して、Nginxを起動する方法
+```sh
+sudo nginx -s stop
+sudo service nginx start
+```
+コマンドを２つ使用する方法。  
+stopではなくpuitでもnginxは停止する。  
+stopはすぐにサーバーを停止し、puitだと処理が終わってから停止するらしい。  
+停止している間はサービスが停止する。
+
+#### Nginxを再起動する方法
+```sh
+sudo service nginx restart
+```
+stopかpuitか詳しい挙動はわからないが、サーバーが停止したのちに起動される。  
+サービスの瞬断が発生する。
+
+#### Nginxをリロードする方法
+```sh
+sudo nginx -s reload
+```
+瞬断が発生しない方法。基本的にはこれを使っとけばいい気がする。  
+ 
+
+
+
+
+
+
+
+```sh
+
+```
+```sh
+
+```
+
+```sh
+
+```
+
+```sh
+
+```
+
+```sh
+
+```
+
+```sh
+
+```
+```sh
+
+```
+
+```sh
+
+```
+
+```sh
+
+```
+
+```sh
+
+```
+
+
+## 参考
+【YAML】Railsのdatabase.ymlについてなんとなく分かった気になっていた記法・意味まとめ：[https://qiita.com/terufumi1122/items/b5678bae891ba9cf1e57](https://qiita.com/terufumi1122/items/b5678bae891ba9cf1e57)
+
+EC2で立ち上げたrailsアプリのDBをRDSにする：[https://abillyz.com/moco/studies/119](https://abillyz.com/moco/studies/119)
+
+Web3層アーキテクチャってなに？Alibaba Cloud, AWS, Azure, Google Cloud のWeb3層アーキテクチャを比べてみました：[https://www.softbank.jp/biz/blog/cloud-technology/articles/202206/web-3-tier-architecture/](https://www.softbank.jp/biz/blog/cloud-technology/articles/202206/web-3-tier-architecture/)
+
+AWS EC2にNginxをインストールする：[https://qiita.com/e-onm/items/0814b6c4db395e331df1](https://qiita.com/e-onm/items/0814b6c4db395e331df1)
+
+Amazon Linux 2 を実行している EC2 インスタンスに Extras Library からソフトウェアパッケージをインストールする方法を教えてください。：[https://repost.aws/ja/knowledge-center/ec2-install-extras-library-software](https://repost.aws/ja/knowledge-center/ec2-install-extras-library-software)
+
+systemctl コマンド：[https://qiita.com/sinsengumi/items/24d726ec6c761fc75cc9](https://qiita.com/sinsengumi/items/24d726ec6c761fc75cc9)
+
+Rubyの文字列連結に「#+」ではなく式展開「#{}」を使うべき理由：[https://techracho.bpsinc.jp/hachi8833/2021_07_29/25551](https://techracho.bpsinc.jp/hachi8833/2021_07_29/25551)
+
+NginxとRails（Puma）をソケット通信で連携させる方法！：[https://kitsune.blog/nginx-rails](https://kitsune.blog/nginx-rails)
+
+[nginx]設定の反映：[https://qiita.com/WisteriaWave/items/fa2e7f4442aee497fe46](https://qiita.com/WisteriaWave/items/fa2e7f4442aee497fe46)

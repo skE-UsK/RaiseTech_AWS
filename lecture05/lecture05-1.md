@@ -1,14 +1,8 @@
 # `第５回課題`
 ## 課題
-- EC2 上にサンプルアプリケーションをデプロイして、動作させてください。
-  - サンプルは第 3 回で案内済みのものを使ってください。
-  - まずは組み込みサーバーだけで、動作したらサーバーアプリケーションを分けて動くかチャレンジしてみましょう。
-- 動作したら、ELB(ALB)を追加してみましょう。
-- ELB を加えて動作が確認できたら、さらに S3 を追加してみましょう。S3 をどのように使うかはお任せします。
-  - ここまでが問題無く動作したら、その環境を構成図に書き起こしてください。
-- 構成図の書き方動画をポータルサイトに公開しています。
-- 以上の結果を、正しく動作したことを示す資料（画像など）を添えて報告してください。
-- PR で報告いただいた方には PR 上でコメントします。
+- EC2 上にサンプルアプリケーションをデプロイする
+  - 第 3 回で使用したサンプルアプリケーションを使う
+  - PUMA(組み込みサーバー)だけで動作させる
 <br/>
 <br/>
 <br/>
@@ -60,16 +54,16 @@ sudo yum update -y
 ```
 オプション -y：インストール時にレスポンスがあったらyと答える
 
-
+git をインストール
 ```sh
 sudo yum install git -y
 ```
-git をインストール
 
+確認
 ```sh
 git version
 ```
-確認
+
 <br/>
 <br/>
 <br/>
@@ -82,21 +76,22 @@ git version
 <br/>
 
 ### MySQL8.0をインストール
-
+確認
 ```sh
 mysql --version
 ```
 前回から気付いてはいたが、作成時にエンジンのオプションの項目でMySQLを選択したのになぜかMariaDBが入っている
 
+MySQL8.0.33 をインストール
 ```sh
 curl -fsSL https://raw.githubusercontent.com/MasatoshiMizumoto/raisetech_documents/main/aws/scripts/mysql_amazon_linux_2.sh | sh
 ```
-MySQL8.0.33 をインストール
 
+確認
 ```sh
 mysql --version
 ```
-確認
+
 <br/>
 <br/>
 <br/>
@@ -108,11 +103,10 @@ cp database.yml.sample database.yml
 ```
 database.yml.sample が database.yml という名前でコピーされる
 
+コピーされたdatabase.yml を編集する
 ```sh
 vi database.yml
 ```
-database.yml を編集する
-変更する場所は３箇所  
 development とtest のsocket の項目を  
 「/tmp/mysql.sock」→「/var/lib/mysql/mysql.sock」に変更
 
@@ -123,23 +117,22 @@ development とtest のsocket の項目を
 <br/>
 
 ### rvm と ruby のインストール
+呪文  
 ```sh
 sudo gpg --keyserver keyserver.ubuntu.com --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3 7D2BAF1CF37B13E2069D6956105BD0E739499BDB
 ```
-呪文
 
 ```sh
 \curl -sSL https://get.rvm.io | bash -s stable
 ```
-rvm をインストール
 
 ```sh
 rvm get stable
 ```
+ruby をインストール
 ```sh
 rvm install 3.1.2
 ```
-ruby をインストール
 
 [参考](https://rvm.io/rvm/security)
 <br/>
@@ -147,41 +140,41 @@ ruby をインストール
 <br/>
 
 ### npm と yarn のインストール
-
+ノードバージョンマネージャー (nvm) をインストール
 ```sh
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
 ```
-ノードバージョンマネージャー (nvm) をインストールします。
 
+nvm を有効にする
 ```sh
 . ~/.nvm/nvm.sh
 ```
-nvm を有効にします。
 
+nvm を使用して Node.js の最新バージョンをインストールする
 ```sh
 nvm install --lts
 ```
-nvm を使用して Node.js の最新バージョンをインストールします。
 
+Node.js が正しくインストールされ、実行されていることをテストする
 ```sh
 node -e "console.log('Running Node.js ' + process.version)"
 ```
-Node.js が正しくインストールされ、実行されていることをテストします。
 
+Node v17.9.1 をインストール
 ```sh
 nvm install 17.9.1
 ```
-Node v17.9.1 をインストール
 
+yarn をインストール
 ```sh
 npm install --global yarn
 ```
-yarn をインストール
 
+確認
 ```sh
 yarn --version
 ```
-確認
+
 
 [参考](https://docs.aws.amazon.com/ja_jp/sdk-for-javascript/v2/developer-guide/setting-up-node-on-ec2-instance.html)
 <br/>
@@ -212,15 +205,18 @@ yarn -v
 yarn：1.22.19
 <br/>
 <br/>
+
+#### 注意
+ここまでの方法だと、Nodeとyarnはインスタンスを停止するたびになぜか消えるので特に注意する  
+ログインするたび下記コマンドを実行する必要がある
+```sh
+nvm install 17.9.1
+```
+<br/>
+<br/>
 <br/>
 
-特にNodeとyarnはここまでの方法だと、なぜかインスタンスを停止するたびに消えるので注意する。
-<br/>
-<br/>
-<br/>
-
-### rails 環境のセットアップとPUMA の起動
-bin/setup を実行する。
+### rails 環境のセットアップbin/setup を実行する。
 ```sh
 bin/setup
 ```
@@ -242,7 +238,8 @@ bin/setup
 <br/>
 <br/>
 
-PUMAの起動
+### PUMAの起動
+bin/dev を実行する
 ```sh
 bin/dev
 ```
@@ -260,14 +257,18 @@ grep 3000：grep コマンドで3000を検索する
 例）http://xx.xx.xx.xx:3000（xx.xx.xx.xxがパブリック IPv4 アドレス）
 
 [パブリック IPv4 DNS] : 3000でもできるが、その場合は課題３と同じようにconfig/environments/development.rbを編集する必要がある  
-<br/>
-<br/>
+![end](images/end/5-1/1.png)  
+起動できた
 <br/>
 
 
+
+
+
+
+
+<div style="text-align: center;">
 
 [次へ](./lecture05-2.md)
 
-
-
-
+</div>
