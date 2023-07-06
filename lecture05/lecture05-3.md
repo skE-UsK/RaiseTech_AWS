@@ -1,104 +1,11 @@
 # `第５回課題`
 ## 課題
-- EC2 上にサンプルアプリケーションをデプロイする
-  - 第 3 回で使用したサンプルアプリケーションを使う
-  - Nginx-Unicornで動作させる
 - ALBを追加する
 - S3を追加する
 <br/>
-
-## 全体の流れ
-1. unicorn.rbの編集(ソケットの作成)  
-1. Nginxの設定(ソケットを参照)  
-1. Nginxのリロード(設定の反映)
 <br/>
 <br/>
 
-## Unicornの設定
-Unicornのインストールをしたり、設定ファイルを1から作ったりするのかと思っていたが、UnicornはサンプルアプリのGemfileに元から記載されていたので、インストール済みだった。  
-記載されていなければGemfileをvimで開いて、下記を加えた後にbundle installを実行するらしい。
-
-> gem 'unicorn'
-
-
-設定ファイルもconfigディレクトリに[unicorn.rb](file/unicorn.rb) があったため少しの変更で設定できた。  
-<br/>
-
-### unicorn.rb 
-> listen '/opt/raisetech-live8-sample-app/tmp/sockets/unicorn.sock'
-
-Pumaの時に使ったソケットをunicornでも作っているようなので、Pumaと同じディレクトリに作るようにした。  
-
-> pid    '/opt/raisetech-live8-sample-app/tmp/pids/unicorn.pid'
-
-pidも作るらしい。tmpの下にpidsがあったのでとりあえずそこを参照するようにした。  
-
-### Unicornの起動と停止
-Unicornは以下のコマンドで実行できる。
-```sh
-bundle exec unicorn -c config/unicorn.rb
-```
-[Control + C] で終了できる。  
-![end](images/end/5-3/1.png)  
-サンプルアプリが表示できた。  
-Nginx-Pumaの時にも思ったが、「Nginx-Unicornで動いています」というエビデンスがないが、どこで確認するのかわからない。  
-```sh
-bundle exec unicorn -c config/unicorn.rb -D
-```
--Dをつけるとデーモン化する。わかりやすく言い換えると、動き続ける。  
-EC2からログアウトしてもEC2を停止しなければ動いている。  
-
-停止するときは以下を実行すると
-```sh
-ps ax | grep unicorn
-```
-このような出力があるので
->  4420 ?        Sl     0:00 unicorn master -c config/unicorn.rb -D  
- 4427 ?        Sl     0:00 unicorn worker[0] -c config/unicorn.rb -D  
- 4428 ?        Sl     0:00 unicorn worker[1] -c config/unicorn.rb -D  
- 4429 ?        Sl     0:00 unicorn worker[2] -c config/unicorn.rb -D  
- 4446 pts/1    S+     0:00 grep --color=auto unicorn
-
-master のプロセスID(pid)をkillコマンドで実行する。
-```sh
-kill 4420
-```
-
-他に、unicorn.pidを参照しても停止することができる
-```sh
-kill -QUIT `cat /opt/raisetech-live8-sample-app/tmp/pids/unicorn.pid`
-```
-
-### Unicornに関するその他
-![1](images/unicorn/1.png)  
-rails s と違って、Unicornの起動時には何も表示されないのでunicorn.rbの最後に以下を追記してみた。
-
->puts '=> Booting Unicorn'  
-puts 'Use Ctrl-C to stop'
-
-![2](images/unicorn/2.png)  
-デーモン化する時にも表示されるので、エラーが出ても関係なく表示されるのだろうが、動いてる感が出た。  
-
-やってもいいことなのかは知らない。  
-<br/>
-<br/>
-<br/>
-
-## Nginxの設定
-> server unix:///opt/raisetech-live8-sample-app/tmp/sockets/puma.sock fail_timeout=0;
-
-上記の一行を下記の一行に変更したらNginx-PumaからNginx-Unicornに変わる。
-
-> server unix:///opt/raisetech-live8-sample-app/tmp/sockets/unicorn.sock fail_timeout=0;
-
-Nginxは変更したらリロードを行わないと反映されない。
-### Nginxに関するその他
-変更しなくても追記で良い。  
-両方書いとけばソケットのある方を参照してくれる。  
-両方起動したらどう優先するのかは不明。  
-
-<br/>
-<br/>
 
 ## ALB
 ELBを追加したらこんな感じになるのかなと予想していた。  
@@ -137,6 +44,8 @@ ALBに、タイプHTTPをすべて許可するセキュリティグループを�
 EC2は、タイプHTTPを選んで、ALBに付与したセキュリティグループをソースにしたセキュリティグループを付与する。  
 
 これでALBを通らないアクセス方法が消えた。  
+
+ALBとEC2に3000を許可して、ソースには0.0.0.0/0を設定すると80の
 
 <br/>
 <br/>
@@ -242,7 +151,7 @@ sudo systemctl status awslogsd
 
 ### IAMの作成
 IAMのロールから  
-![IAM-1](images/IAM/1.png)
+![IAM-1](images/IAM/1.png)  
 ロールを作成  
 ![IAM-2](images/IAM/2.png)  
 EC2を選んで次へ  
@@ -325,19 +234,136 @@ CloudWatch > ロググループ
 時間を指定してエクスポート
 
 ![S3end.png](images/S3/end.png)  
-エクスポートできた。
+エクスポートできた。  
+時間指定がUTCなので注意  
 <br/>
 <br/>
+
+## CloudWatchからS3へのエクスポートをAmazon EventBridgeを使って自動化する（未実装）
+結論、実装できなかった。  
+毎日決まった時間にCloudWatchからS3へのエクスポートすることはできたが、事前に決めた範囲のアクセスログしかエクスポートできない。  
+決められた範囲というのは範囲が**更新されない**という意味で、つまり次の日もその次の日も**全く同じ範囲**のログが吐き出される。  
+これを自動化するにはLambdaが必要なので、とりあえず諦める。  
+
+やったことを書いておく  
+ロールの作成。ここでようやく理解できた気がする。  
+![IAM-2](images/IAM/2.png)  
+カスタム信頼ポリシーを選択する。  
+[エンティティ](file/Scheduler-Execution-Role.json.txt)をコピペする  
+スケジューラがこのロールを使えるようになる。  
+![IAM-3](images/IAM/3.png)  
+ポリシーは、CloudWatchlogsのフルアクセスとS3の特定バケットへの読み書き権限を許可した。  
+
+![EventBridge1](images/EventBridge/1.png)  
+スケジュルの作成  
+![EventBridge2](images/EventBridge/2.png)  
+スケジュール名を決める  
+![EventBridge3](images/EventBridge/3.png)  
+毎日なので定期的なスケジュールを選択  
+cron 式は * を入れると指定なしになる  
+画像では毎日06:00を指定している。  
+画像のとき、分も * にすれば６時から毎分になる。  
+エクスポートできるか確認するのに便利。  
+5分ごととかは多分できない。5にしたら毎日06:05になる。  
+![EventBridge4](images/EventBridge/4.png)  
+タイムゾーンは東京。選べるのはありがたい。  
+![EventBridge5](images/EventBridge/5.png)  
+すべてのAPIを選択してlogsで検索。  
+![EventBridge6](images/EventBridge/6.png)  
+CreateExportTask を選択する。  
+![EventBridge7](images/EventBridge/7.png)  
+"Destination":バケット名  
+"From":データの範囲(開始)  
+"LogGroupName":ロググループの名前  
+"To":データの範囲(終了)  
+"From"と"To"はエポックタイムスタンプが入る。ミリ秒なことに注意。  
+手動で変えるにしてもエポックタイムスタンプなので人間にとって分かりずらすぎる。ここを毎日変えるくらいなら手動でCloudWatchからS3へエクスポートする方が楽。  
+![EventBridge8](images/EventBridge/8.png)  
+デフォルト  
+![EventBridge9](images/EventBridge/9.png)  
+作成したロールを選択して次へ  
+![EventBridge10](images/EventBridge/10.png)  
+スケジュールを作成  
+
+毎日指定した時間に7月2日〜7月3日までのログを吐き出すスケジュールが完成した。  
+スケジュールをトリガーにしたルールによってターゲットのペイロードを変更するにはSDKが必要。  
+<br/>
+<br/>
+
+## アップロードされた画像をS3に保存
+railsアプリがアクティブストレージを使えるように準備するコマンドらしい。
+```sh
+bin/rails active_storage:install
+
+bin/rails db:migrate
+```
+2つとも実行した。  
+db/migrateディレクトリに active_storage_blobs と active_storage_attachments が生成されるらしいが、違う名前のファイルがあった。  
+どこかで設定されている（？）  
+生成される前にdb/migrateディレクトリを確認しておくべきだった。  
+rails5くらいではバリテーションがなかったようだけど、rails7ではあるよう。  
+
+### Gemfileの編集
+Gemfileに以下の一行を加える。
+> gem 'mini_magick', '~> 4.8'
+```sh
+bundle install
+```
+
+### storage.ymlの編集
+[storage.yml](file/storage.yml.txt)を編集する  
+region: と bucket: にリージョンとバケット名を書く。  
+ダブルクォーテーションで囲む必要はない。  
+
+### development.rbの編集
+config/environments/development.rbを編集する  
+> config.active_storage.service = :local
+:local の部分を :amazonに変更する。  
+
+### EC2にロールを追加
+EC2のロールにS3のポリシーがない時のエラー  
+![error](images/S3/error.png)  
+EC2にS3アクセス権を追加する必要がある  
+とりあえずフルアクセスの追加をした。  
+
+１つ追加すると３つのオブジェクトがアップロードされた。  
+![imageend](images/S3/imageend.png)  
+
+追加できた。  
+
+元から上がっていた（RDSを使っていた時にアップロードした）データに画像をEditでアップロードしてから、S3のオブジェクトを削除したら画像が表示されなくなった。  
+新しく保存するものについては勝手にRDSからS3に変わったと思われるが、既存のものも問題なく表示されているので、RDSも使われている。  
+EC2のロールからS3のポリシーを削除したら画像のアップロードができないので、ただ画像の保存する場所が変更された。  
+
+<br/>
+<br/>
+
+### 3つのファイルについて
+それぞれを大中小と呼ぶとき  
+
+「大」は元データ。この画像から、アイコンと用の画像データが作成される。基本的にshowで使用されている。  
+
+「中」はクリエイトした直後に表示されている画像データ。このページから移動しないまま「中」を削除するとshowが使えなくなる。このページで「大」を削除するとshowで使用されるようになる。  
+
+「小」はアイコン。Homeにアクセスした時に初めて作成される。つまりHomeに来る前に「大」が削除されると作成されない。  
+
+純粋に大中小でそれぞれ元データ、showデータ、アイコンなのかと思ったら意外と複雑で時間を無駄にした。もしかしたらEditを経由したりすると挙動が変わるかも？  
+流石にどうでもいい。  
+
+１つの画像ファイルに対し、ランダムな名前のオブジェクトを３つも作られたら管理が大変だと思い
+lecture04/images/hoge/20230707.jpg  
+のようにできないかと調べた。  
+ついでに
+lecture04/logs/nginx/20230707.txt  
+のようにできないかも調べた。
+
+これもSDKが必要。  
+
+<br/>
+<br/>
+
 ## 参考
-【Rails】Webサーバー「Unicorn」の基本情報と実装方法：[https://autovice.jp/articles/146](https://autovice.jp/articles/146)
-
 【解決】Original Error: You must have the ImageMagick or GraphicsMagick installed Image Failed to manipulate with MiniMagick, maybe it is an image?：[https://qiita.com/___fff_/items/5780a2145555c9522c1e](https://qiita.com/___fff_/items/5780a2145555c9522c1e)
-
-ターミナルで起動時にようこそメッセージを表示させる：[https://taccuma.com/hello-terminal/](https://taccuma.com/hello-terminal/)
-
-【kill】Linuxでプロセスを終了させるコマンド：[https://uxmilk.jp/50638](https://uxmilk.jp/50638)
-
-Linuxの「シグナル」って何だろう？：[https://atmarkit.itmedia.co.jp/ait/articles/1708/04/news015_2.html](https://atmarkit.itmedia.co.jp/ait/articles/1708/04/news015_2.html)
 
 EC2へのアクセスをALBからのみに制限する方法：[https://tomokazu-kozuma.com/how-to-restrict-access-to-ec-2-only-from-alb/](https://tomokazu-kozuma.com/how-to-restrict-access-to-ec-2-only-from-alb/)
 
@@ -346,6 +372,7 @@ EC2へのアクセスをALBからのみに制限する方法：[https://tomokazu
 EC2 の nginx ログを CloudWatch Logs → S3 → Athena を介して分析する：[https://qiita.com/_s__o_/items/4704d90ecb65f2c752ec](https://qiita.com/_s__o_/items/4704d90ecb65f2c752ec)
 
 AWS CloudWatch LogsエージェントでAmazon EC2上のNginxのaccess.log , error.log , php-fpm error.log , Linuxのmessages , secureログを収集する：[https://www.yamamanx.com/aws-cloudwatch-logs-ec2-nginx/](https://www.yamamanx.com/aws-cloudwatch-logs-ec2-nginx/)
+
 AWS EC2 のタイムゾーンを変更する手順 (memo)：[https://qiita.com/glostuan/items/8dad6d9b3b5ee123e7cf](https://qiita.com/glostuan/items/8dad6d9b3b5ee123e7cf)
 
 コンソールを使用してログデータを Amazon S3 にエクスポートする：[https://docs.aws.amazon.com/ja_jp/AmazonCloudWatch/latest/logs/S3ExportTasksConsole.html](https://docs.aws.amazon.com/ja_jp/AmazonCloudWatch/latest/logs/S3ExportTasksConsole.html)

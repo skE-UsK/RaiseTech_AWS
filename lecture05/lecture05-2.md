@@ -3,15 +3,21 @@
 - EC2 上にサンプルアプリケーションをデプロイする
   - 第 3 回で使用したサンプルアプリケーションを使う
   - Nginx-Pumaで動作させる
+  - Nginx-Unicornで動作させる
 - 構成図を書く
 <br/>
 <br/>
 
 ## 全体の流れ
-1. Nginxのインストール  
-1. puma.rbの編集(ソケットの作成)  
-1. Nginxの設定(ソケットを参照)  
-1. Nginxのリロード(設定の反映)
+1. Nginxのインストール
+- Nginx-Puma
+  1. puma.rbの編集(ソケットの作成)  
+  1. Nginxの設定(ソケットを参照)  
+  1. Nginxのリロード(設定の反映)
+- Nginx-Unicoren
+  1. unicorn.rbの編集(ソケットの作成)  
+  1. Nginxの設定(ソケットを参照)  
+  1. Nginxのリロード(設定の反映)
 <br/>
 <br/>
 
@@ -172,9 +178,9 @@ Nginxは、「Nginx全体に関する設定」と「アプリごとに行う設�
 アプリごとの設定は /etc/nginx/conf.d/ に新しく.conf ファイルを作成して設定する。  
 
 サンプルアプリの設定を行うため
-/etc/nginx/conf.d/ に新しく[setech-live8-sample-app.conf](file/raisetech-live8-sample-app.conf) を作成して設定した。  
+/etc/nginx/conf.d/ に新しく[setech-live8-sample-app.conf](file/raisetech-live8-sample-app.conf.txt) を作成して設定した。  
 
-### [setech-live8-sample-app.conf](file/raisetech-live8-sample-app.conf) 
+### [setech-live8-sample-app.conf](file/raisetech-live8-sample-app.conf.txt) 
 > server unix:///opt/raisetech-live8-sample-app/tmp/sockets/puma.sock fail_timeout=0;
 
 生成されるpuma.sockを参照する。
@@ -247,7 +253,155 @@ Nginxを停止すると表示できなくなった。
 ![error](images/end/5-2/2.png)  
 <br/>
 <br/>
+## Unicornの設定
+Unicornのインストールをしたり、設定ファイルを1から作ったりするのかと思っていたが、UnicornはサンプルアプリのGemfileに元から記載されていたので、インストール済みだった。  
+記載されていなければGemfileをvimで開いて、下記を加えた後にbundle installを実行するらしい。
+
+> gem 'unicorn'
+
+
+設定ファイルもconfigディレクトリに[unicorn.rb](file/unicorn.rb.txt) があったため少しの変更で設定できた。  
 <br/>
+
+### unicorn.rb 
+> listen '/opt/raisetech-live8-sample-app/tmp/sockets/unicorn.sock'
+
+Pumaの時に使ったソケットをunicornでも作っているようなので、Pumaと同じディレクトリに作るようにした。  
+
+> pid    '/opt/raisetech-live8-sample-app/tmp/pids/unicorn.pid'
+
+pidも作るらしい。tmpの下にpidsがあったのでとりあえずそこを参照するようにした。  
+
+### Unicornの起動と停止
+Unicornは以下のコマンドで実行できる。
+```sh
+bundle exec unicorn -c config/unicorn.rb
+```
+[Control + C] で終了できる。  
+![end](images/end/5-3/1.png)  
+サンプルアプリが表示できた。  
+Nginx-Pumaの時にも思ったが、「Nginx-Unicornで動いています」というエビデンスがないが、どこで確認するのかわからない。  
+```sh
+bundle exec unicorn -c config/unicorn.rb -D
+```
+-Dをつけるとデーモン化する。わかりやすく言い換えると、動き続ける。  
+EC2からログアウトしてもEC2を停止しなければ動いている。  
+
+停止するときは以下を実行すると
+```sh
+ps ax | grep unicorn
+```
+このような出力があるので
+>  4420 ?        Sl     0:00 unicorn master -c config/unicorn.rb -D  
+ 4427 ?        Sl     0:00 unicorn worker[0] -c config/unicorn.rb -D  
+ 4428 ?        Sl     0:00 unicorn worker[1] -c config/unicorn.rb -D  
+ 4429 ?        Sl     0:00 unicorn worker[2] -c config/unicorn.rb -D  
+ 4446 pts/1    S+     0:00 grep --color=auto unicorn
+
+master のプロセスID(pid)をkillコマンドで実行する。
+```sh
+kill 4420
+```
+
+他に、unicorn.pidを参照しても停止することができる
+```sh
+kill -QUIT `cat /opt/raisetech-live8-sample-app/tmp/pids/unicorn.pid`
+```
+
+### Unicornに関するその他
+![1](images/unicorn/1.png)  
+rails s と違って、Unicornの起動時には何も表示されないのでunicorn.rbの最後に以下を追記してみた。
+
+>puts '=> Booting Unicorn'  
+puts 'Use Ctrl-C to stop'
+
+![2](images/unicorn/2.png)  
+デーモン化する時にも表示されるので、エラーが出ても関係なく表示されるのだろうが、動いてる感が出た。  
+
+やってもいいことなのかは知らない。  
+
+### Unicornに関する追記
+EC2インスタンス起動時に実行するようにする  
+Nginxでは以下を実行して
+> sudo systemctl enable nginx
+
+インスタンス起動時にNginxの自動起動有効にしたのでunicornに変えてやってみた。  
+> Failed to execute operation: No such file or directory
+
+ダメだった。調べたら、以下の操作が必要らしい。
+
+```sh
+cd /etc/systemd/system
+```
+/etc/systemd/system に移動
+```sh
+sudo touch unicorn.service
+```
+unicorn.service ファイルの作成
+```sh
+sudo chmod 644 unicorn.service
+```
+権限変更
+```sh
+sudo vim unicorn.service
+```
+[コピペ](fire/unicorn.service.txt)してユーザーやパスを変更
+```sh
+sudo systemctl enable unicorn.service
+```
+> Created symlink from /etc/systemd/system/multi-user.target.wants/unicorn.service to /etc/systemd/system/unicorn.service.
+
+使えるようになった。  
+シンボリックリンクができた  
+
+sudoが無いと以下のエラーが出る
+> Failed to execute operation: The name org.freedesktop.PolicyKit1 was not provided by any .service files
+```sh
+ls -l multi-user.target.wants/unicorn.service
+```
+> lrwxrwxrwx 1 root root 35  7月  5 13:46 multi-user.target.wants/unicorn.service -> /etc/systemd/system/unicorn.service
+
+シンボリックリンクが貼られたことの確認
+
+停止
+```sh
+sudo service unicorn stop
+```
+
+起動
+```sh
+sudo service unicorn start
+```
+
+ステータス
+```sh
+sudo service unicorn status -l
+```
+
+環境を設定したければこうすると思われる
+```sh
+bundle exec unicorn -c config/unicorn.rb -E production -D
+```
+<br/>
+<br/>
+<br/>
+
+## Nginxの設定
+> server unix:///opt/raisetech-live8-sample-app/tmp/sockets/puma.sock fail_timeout=0;
+
+上記の一行を下記の一行に変更したらNginx-PumaからNginx-Unicornに変わる。
+
+> server unix:///opt/raisetech-live8-sample-app/tmp/sockets/unicorn.sock fail_timeout=0;
+
+Nginxは変更したらリロードを行わないと反映されない。
+### Nginxに関するその他
+変更しなくても追記で良い。  
+両方書いとけばソケットのある方を参照してくれる。  
+両方起動したらどう優先するのかは不明。  
+
+<br/>
+<br/>
+
 
 ## 参考
 【YAML】Railsのdatabase.ymlについてなんとなく分かった気になっていた記法・意味まとめ：[https://qiita.com/terufumi1122/items/b5678bae891ba9cf1e57](https://qiita.com/terufumi1122/items/b5678bae891ba9cf1e57)
@@ -268,6 +422,13 @@ NginxとRails（Puma）をソケット通信で連携させる方法！：[https
 
 [nginx]設定の反映：[https://qiita.com/WisteriaWave/items/fa2e7f4442aee497fe46](https://qiita.com/WisteriaWave/items/fa2e7f4442aee497fe46)
 
+【Rails】Webサーバー「Unicorn」の基本情報と実装方法：[https://autovice.jp/articles/146](https://autovice.jp/articles/146)
+
+ターミナルで起動時にようこそメッセージを表示させる：[https://taccuma.com/hello-terminal/](https://taccuma.com/hello-terminal/)
+
+【kill】Linuxでプロセスを終了させるコマンド：[https://uxmilk.jp/50638](https://uxmilk.jp/50638)
+
+Linuxの「シグナル」って何だろう？：[https://atmarkit.itmedia.co.jp/ait/articles/1708/04/news015_2.html](https://atmarkit.itmedia.co.jp/ait/articles/1708/04/news015_2.html)
 
 
 
