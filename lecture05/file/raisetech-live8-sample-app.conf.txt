@@ -1,0 +1,36 @@
+upstream raisetech-live8-sample-app {
+    # UNIXドメインソケット通信の設定
+    server unix:///opt/raisetech-live8-sample-app/tmp/sockets/puma.sock fail_timeout=0;
+}
+
+server {
+    # 80番ポートを許可
+    listen 80;
+
+    # host名を指定
+    server_name a;
+
+    # 静的ファイル（画像など）のパスをドキュメントルートに設定
+    root /opt/raisetech-live8-sample-app/public;
+
+    # ドキュメントルート配下を以下の先頭から順番に辿る
+    try_files $uri/index.html $uri @raisetech-live8-sample-app;
+
+    # nginxのリバースプロキシ設定
+    # 上記の@raisetech-live8-sample-appが呼び出された場合のみ以下の設定を読み込む
+    location @raisetech-live8-sample-app {
+        # サーバの指示通りにリダイレクト
+        proxy_redirect off;
+
+        # proxy_set_headerを利用することでサーバーに情報を転送できる
+        # ホスト名
+        proxy_set_header Host $http_host;
+        # 送信元のIPアドレス
+        proxy_set_header X-Real-IP $remote_addr;
+        # 送信元の経路情報
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+        # upstreamの名前を記述
+        proxy_pass http://raisetech-live8-sample-app;
+    }
+}

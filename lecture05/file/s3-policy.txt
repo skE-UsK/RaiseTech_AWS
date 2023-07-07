@@ -1,0 +1,50 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+          "Action": "s3:GetBucketAcl",
+          "Effect": "Allow",
+          "Resource": "arn:aws:s3:::my-exported-logs",
+          "Principal": { "Service": "logs.Region.amazonaws.com" },
+          "Condition": {
+            "StringEquals": {
+                "aws:SourceAccount": [
+                    "AccountId1",
+                    "AccountId2",
+                    ...
+                ]
+            },
+            "ArnLike": {
+                    "aws:SourceArn": [
+                        "arn:aws:logs:Region:AccountId1:log-group:*",
+                        "arn:aws:logs:Region:AccountId2:log-group:*",
+                        ...
+                     ]
+            }
+          }
+      },
+      {
+          "Action": "s3:PutObject" ,
+          "Effect": "Allow",
+          "Resource": "arn:aws:s3:::my-exported-logs/*",
+          "Principal": { "Service": "logs.Region.amazonaws.com" },
+          "Condition": {
+            "StringEquals": {
+                "s3:x-amz-acl": "bucket-owner-full-control",
+                "aws:SourceAccount": [
+                    "AccountId1",
+                    "AccountId2",
+                    ...
+                ]
+            },
+            "ArnLike": {
+                    "aws:SourceArn": [
+                        "arn:aws:logs:Region:AccountId1:log-group:*",
+                        "arn:aws:logs:Region:AccountId2:log-group:*",
+                        ...
+                    ]
+            }
+          }
+      }
+    ]
+}

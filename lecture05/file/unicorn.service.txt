@@ -1,0 +1,39 @@
+[Unit]
+#ユニットの説明
+Description=The unicorn process
+#設定するユニットの後に起動するユニット
+Before=nginx.service
+#設定するユニットの前に起動するユニット
+After=network.target remote-fs.target
+
+[Service]
+#実行時のユーザ　 ※適宜、自らのアプリに合わして設定すること
+User=memadmin
+#作業ディレクトリの指定　 ※適宜、自分のアプリにおけるフルパスを記載すること
+WorkingDirectory=/var/www/rails/memory_tank
+#標準出力先をsyslogに設定
+StandardOutput = syslog
+#標準エラー出力先をsyslogに設定
+StandardError = syslog
+#syslogへ出力する際の識別子を設定
+SyslogIdentifier = unicorn
+#PIDファイルのフルパスを記載  ※適宜、自分のアプリにおけるパスを記載すること
+PIDFile=/var/www/rails/memory_tank/tmp/pids/unicorn.pid
+#サービスの起動完了を判定するタイミングを指定。指定コマンドがフォアグラウンドで実行を継続する場合。コマンドを実行したらすぐに起動完了と判定。
+Type=simple
+#プロセスが異常終了した場合にサービス再起動する
+Restart=always
+#変数 　※適宜、アプリの環境を指定
+Environment=RAILS_ENV=production
+#変数　 ※適宜、unicornの設定ファイルのフルパスを記載すること
+Environment=UNICORN_CONF=/var/www/rails/memory_tank/config/unicorn.conf.rb
+#unicornの起動　※　-lはログイン状態のシェルで-cは引数のコマンドを実行するという意味
+ExecStart=/bin/bash -l -c 'bundle exec unicorn_rails -c ${UNICORN_CONF} -E ${RAILS_ENV} -D'
+#unicornの停止
+ExecStop=/usr/bin/kill -QUIT $MAINPID
+#unicornの再起動
+ExecReload=/usr/bin/kill -USR2 $MAINPID
+
+[Install]
+#enable時にこのUnitの.wantsディレクトリにシンボリックリンクをはる
+WantedBy=multi-user.target                              
