@@ -288,7 +288,7 @@ CloudTrailの証跡ログはニアリアルタイムで出力される。
 <br/>
 
 ## 証跡ログの保存、保護
-![CloudTrail-06](CloudTrail/06.jpg)  
+![CloudTrail-06](CloudTrail/06.png)  
 証跡の作成というメニューから証跡の作成が行える  
 新規のバケットを作成すると
 ログは bucketname/AWSLogs/アカウント ID に保存される  
@@ -421,9 +421,9 @@ AWS CloudTrailのイベント履歴から参照することができる。
 イベント履歴の機能でも簡単なフィルタリングができる。簡単なとは、単一の属性キーに対するフィルタリングのみを有する。  
 つまりクエリなどを用いた高度な検索、調査機能はない。  
 複数行選択することで比較することができる  
-![CloudTrail-20](CloudTrail/20.jpg)  
+![CloudTrail-20](CloudTrail/20.png)  
 表示からむを追加することもできる  
-![CloudTrail-21](CloudTrail/21.jpg)  
+![CloudTrail-21](CloudTrail/21.png)  
 
 
 これらはCLIやSDKでも確認できる  
