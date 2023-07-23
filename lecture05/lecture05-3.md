@@ -254,7 +254,7 @@ CloudWatch > ロググループ
 ![IAM-3](images/IAM/3.png)  
 ポリシーは、CloudWatchlogsのフルアクセスとS3の特定バケットへの読み書き権限を許可した。  
 
-![EventBridge1](images/EventBridge/1.png)  
+![EventBridge1](./images/EventBridge/1.png)  
 スケジュルの作成  
 ![EventBridge2](images/EventBridge/2.png)  
 スケジュール名を決める  
