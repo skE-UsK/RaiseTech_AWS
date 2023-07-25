@@ -633,6 +633,7 @@ AWS::ElasticLoadBalancingV2::TargetGroupプロパティを[一覧で見る](reso
 
 
 
+
 ### 使用したリソース  
 [AWS::ElasticLoadBalancingV2::TargetGroup](https://docs.aws.amazon.com/ja_jp/AWSCloudFormation/latest/UserGuide/aws-resource-elasticloadbalancingv2-targetgroup.html)
 

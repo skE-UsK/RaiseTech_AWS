@@ -43,7 +43,6 @@ Metadata:
 Parameters:
   ProjectName:
     Type: String
-    Default: lecture10
     Description: Select the stack name you want to add
 
   RDSPassword:
@@ -88,6 +87,7 @@ Parameters:
 #--------------------------------------------------|--------------------------------------------------#
 
 Resources:
+
 #--------------------------------------------------|--------------------------------------------------#
 # DBSubnetGroup
 

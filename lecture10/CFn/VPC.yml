@@ -22,7 +22,6 @@ Description: make
 Parameters:
   EnvironmentName:
     Type: String
-    # Default: TEST
     Description: use Tags
 
   CIDRPrefix:
@@ -214,18 +213,18 @@ Resources:
 
 Outputs:
 
-#--------------------------------------------------|--------------------------------------------------#
+# #--------------------------------------------------|--------------------------------------------------#
 # Parameters
 
   # EnvironmentNameId:
   #   Value: !Ref EnvironmentName
   #   Export:
-  #     Name: !Sub ${AWS::StackName}id-${EnvironmentName}
+  #     Name: !Sub ${AWS::StackName}-ID-${EnvironmentName}
 
   # CIDRPrefix:
 
 # Parameters end
-#--------------------------------------------------|--------------------------------------------------#
+# #--------------------------------------------------|--------------------------------------------------#
 
 #--------------------------------------------------|--------------------------------------------------#
 # VPC
