@@ -1,0 +1,222 @@
+#--------------------------------------------------|--------------------------------------------------#
+                                      # AWSTemplateFormatVersion
+#--------------------------------------------------|--------------------------------------------------#
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+#--------------------------------------------------|--------------------------------------------------#
+                                            # Description:
+#--------------------------------------------------|--------------------------------------------------#
+
+Description: RDS
+
+#--------------------------------------------------|--------------------------------------------------#
+                                              # Metadata
+#--------------------------------------------------|--------------------------------------------------#
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Select the project name
+        Parameters:
+          - ProjectName
+
+      - Label:
+          default: RDS parameters setting
+        Parameters:
+          - RDSPassword
+          - SelectAZ
+
+      - Label:
+          default: Option
+        Parameters:
+          - DeletionPolicy
+          - UpdateReplacePolicy
+          - BackupRetentionPeriod
+
+
+#--------------------------------------------------|--------------------------------------------------#
+                                            # Parameters
+#--------------------------------------------------|--------------------------------------------------#
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: lecture10
+    Description: Select the stack name you want to add
+
+  RDSPassword:
+    NoEcho: 'true'
+    Type: String
+    Default: RDSPassword
+    Description: RDSPassword
+
+  SelectAZ:
+      Type: String
+      AllowedValues:
+      - 0
+      - 1
+      Default: 0
+      Description: Select where to create RDS. An array that lists Availability Zones for region.
+
+  DeletionPolicy:
+    Type: String
+    AllowedValues:
+      - Delete
+      - Retain
+      - Snapshot
+    Default: Delete
+    Description: DeletionPolicy specifies how a resource is handled when it’s deleted or replaced.
+
+  UpdateReplacePolicy:
+    Type: String
+    AllowedValues:
+      - Delete
+      - Retain
+      - Snapshot
+    Default: Delete
+    Description: UpdateReplacePolicy specifies how a resource is handled when it’s replaced during a stack update.
+
+  BackupRetentionPeriod:
+    Type: String
+    Default: 0
+    Description: BackupRetentionPeriod specifies the number of days to retain automated backups of a database instance.
+
+#--------------------------------------------------|--------------------------------------------------#
+                                            # Resources
+#--------------------------------------------------|--------------------------------------------------#
+
+Resources:
+#--------------------------------------------------|--------------------------------------------------#
+# DBSubnetGroup
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties: 
+      DBSubnetGroupDescription: Created from the CloudFormation
+      DBSubnetGroupName: !Sub ${ProjectName}-DBSubnetGroup
+      SubnetIds: 
+        - Fn::ImportValue: !Sub ${ProjectName}-ID-Subnet-Pri-AZa
+        - Fn::ImportValue: !Sub ${ProjectName}-ID-Subnet-Pri-AZc
+      Tags: 
+      - Key: Name
+        Value: !Sub "${ProjectName}-DBSubnetGroup"
+
+# DBSubnetGroup end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+# SecurityGroup
+
+  EC2toRDS:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: 
+        Fn::ImportValue: !Sub ${ProjectName}-ID-VPC
+      GroupName: 'OutRDS@EC2'
+      GroupDescription: !Sub Security group attached to instances to securely connect to ${ProjectName}_RDS. Modification could lead to connection loss.
+      Tags:
+        - Key: Name
+          Value: !Sub "[${ProjectName}]OutRDS@EC2"
+
+  RDSfromEC2:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: 
+        Fn::ImportValue: !Sub ${ProjectName}-ID-VPC
+      GroupName: 'InEC2@RDS'
+      GroupDescription: !Sub Security group attached to ${ProjectName}_RDS to allow EC2 instances with specific security groups attached to connect to the database. Modification could lead to connection loss.
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref EC2toRDS
+      Tags:
+        - Key: Name
+          Value: !Sub "[${ProjectName}]InEC2@RDS"
+
+  EC2toRDSSecurityGroupEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref EC2toRDS
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      DestinationSecurityGroupId: !Ref RDSfromEC2
+
+# SecurityGroup end
+#--------------------------------------------------|--------------------------------------------------#
+
+  # KmsKey:
+  #     Type: AWS::KMS::Key
+  #     Properties:
+  #       Description: TEST
+  #       KeyPolicy:
+#--------------------------------------------------|--------------------------------------------------#
+# RDS
+
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: !Ref DeletionPolicy
+    UpdateReplacePolicy: !Ref UpdateReplacePolicy
+
+    Properties:
+      DBInstanceIdentifier: !Sub ${ProjectName}-RDS
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      AvailabilityZone: !Select 
+        - !Ref SelectAZ
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      DBInstanceClass: db.t3.micro
+      Engine: mysql
+      EngineVersion: "8.0.32"
+      MasterUsername: admin
+      MasterUserPassword: !Sub ${RDSPassword}
+      AllocatedStorage: 20
+      BackupRetentionPeriod: !Ref BackupRetentionPeriod
+      DBName: !Sub ${ProjectName}_RDS
+      VPCSecurityGroups:
+        - !Ref RDSfromEC2
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-RDS"
+
+# RDS end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+                                              # Out put
+#--------------------------------------------------|--------------------------------------------------#
+
+Outputs:
+
+#--------------------------------------------------|--------------------------------------------------#
+# DBSubnetGroup
+
+# DBSubnetGroup:
+
+# DBSubnetGroup end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+# SecurityGroup
+
+  EC2toRDSId:
+    Value: !Ref EC2toRDS
+    Export:
+      Name: !Sub ${ProjectName}-ID-SG-EC2toRDS
+  # RDSfromEC2:
+  # EC2toRDSSecurityGroupEgress:
+
+# SecurityGroup end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+# RDS
+
+  # RDSInstance:
+
+# RDS end
+#--------------------------------------------------|--------------------------------------------------#
+

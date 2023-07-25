@@ -1,0 +1,318 @@
+#--------------------------------------------------|--------------------------------------------------#
+                                      # AWSTemplateFormatVersion
+#--------------------------------------------------|--------------------------------------------------#
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+#--------------------------------------------------|--------------------------------------------------#
+                                            # Description:
+#--------------------------------------------------|--------------------------------------------------#
+
+Description: make
+ VPC:XXX.XXX.0.0/16
+                                  IGW
+             AZ-a                  |                  AZ-c
+ pubSubnetAZa:XXX.XXX.10.0/24 --- ALB --- pubSubnetAZc:XXX.XXX.110.0/24  
+ priSubnetAZa:XXX.XXX.11.0/24             priSubnetAZc:XXX.XXX.111.0/24
+
+#--------------------------------------------------|--------------------------------------------------#
+                                            # Parameters
+#--------------------------------------------------|--------------------------------------------------#
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    # Default: TEST
+    Description: use Tags
+
+  CIDRPrefix:
+    Type: String
+    Default: 10.0
+    Description: "make ->  VPC : XXX.XXX.0.0/16 & pubSubnetAZa : XXX.XXX.10.0/24 & priSubnetAZa : XXX.XXX.11.0/24 & pubSubnetAZc : XXX.XXX.110.0/24 & priSubnetAZc : XXX.XXX.111.0/24"
+
+
+#--------------------------------------------------|--------------------------------------------------#
+                                            # Resources
+#--------------------------------------------------|--------------------------------------------------#
+
+Resources:
+
+#--------------------------------------------------|--------------------------------------------------#
+# VPC
+
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Sub "${CIDRPrefix}.0.0/16"
+      EnableDnsHostnames: 'true'
+      EnableDnsSupport: 'true'
+      Tags:
+      - Key: Name
+        Value: !Sub ${AWS::StackName}${EnvironmentName}_VPC
+
+# VPC end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+# subnet * 4
+
+  pubSubnetAZa:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        !Ref VPC
+      CidrBlock: !Sub ${CIDRPrefix}.10.0/24
+      AvailabilityZone: !Select 
+        - 0
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      MapPublicIpOnLaunch: 'true'
+      Tags:
+      - Key: Name
+        Value: AZa-Subnet-pub
+
+  priSubnetAZa:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select 
+        - 0
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      CidrBlock: !Sub ${CIDRPrefix}.11.0/24
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: AZa-Subnet-pri
+
+  pubSubnetAZc:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+        Fn::Select: 
+          - 1
+          - Fn::GetAZs:  
+              Ref: 'AWS::Region'
+      CidrBlock: !Sub ${CIDRPrefix}.100.0/24
+      MapPublicIpOnLaunch: 'true'
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: AZc-Subnet-pub
+
+  priSubnetAZc:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone:
+        Fn::Select:
+          - 1
+          - Fn::GetAZs: ""
+      CidrBlock: !Sub ${CIDRPrefix}.110.0/24
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: AZa-Subnet-pri
+
+# subnet * 4 end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+# IGW & Attach
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - Key: Name
+        Value: IGW-Internet
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+# IGW & Attach end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+# routeTables & setting
+
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    DependsOn: AttachGateway
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - Key: Name
+        Value: pub-IGW
+
+  Route:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  routeTableAssocPublic01:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref pubSubnetAZa
+      RouteTableId: !Ref RouteTable
+
+  routeTableAssocPublic02:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref pubSubnetAZc
+      RouteTableId: !Ref RouteTable
+
+# routeTables & setting end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+# SecurityGroup
+
+  In80HTTP:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupName: 'InHTTP(80)@ALB'
+      GroupDescription: InHTTP(80)@ALB
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub "[${AWS::StackName}${EnvironmentName}]InHTTP(80)@ALB"
+
+# SecurityGroup end
+#--------------------------------------------------|--------------------------------------------------#
+
+
+#--------------------------------------------------|--------------------------------------------------#
+# ALB & setting
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${AWS::StackName}-ALB
+      Subnets:
+        - !Ref pubSubnetAZa
+        - !Ref pubSubnetAZc
+      SecurityGroups:
+        - !Ref In80HTTP
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}${EnvironmentName}_LoadBalancer
+
+# ALB & setting end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+                                              # Out put
+#--------------------------------------------------|--------------------------------------------------#
+
+Outputs:
+
+#--------------------------------------------------|--------------------------------------------------#
+# Parameters
+
+  # EnvironmentNameId:
+  #   Value: !Ref EnvironmentName
+  #   Export:
+  #     Name: !Sub ${AWS::StackName}id-${EnvironmentName}
+
+  # CIDRPrefix:
+
+# Parameters end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+# VPC
+
+  VPCId:
+    Value: !Ref VPC
+    Export:
+      Name: !Sub ${AWS::StackName}-ID-VPC
+
+# VPC end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+# subnet * 4
+
+  PubSubnetAZaId:
+    Value: !Ref pubSubnetAZa
+    Export:
+      Name: !Sub ${AWS::StackName}-ID-Subnet-Pub-AZa
+  
+  PriSubnetAZaId:
+    Value: !Ref priSubnetAZa
+    Export:
+      Name: !Sub ${AWS::StackName}-ID-Subnet-Pri-AZa
+
+  PubSubnetAZcId:
+    Value: !Ref pubSubnetAZc
+    Export:
+      Name: !Sub ${AWS::StackName}-ID-Subnet-Pub-AZc
+
+  PriSubnetAZcId:
+    Value: !Ref priSubnetAZc
+    Export:
+      Name: !Sub ${AWS::StackName}-ID-Subnet-Pri-AZc
+
+# subnet * 4 end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+# IGW & Attach
+
+  # InternetGateway:
+  # AttachGateway:
+
+# IGW & Attach end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+# routeTables & setting
+
+  # RouteTable:
+  # Route:
+  # routeTableAssocPublic01:
+  # routeTableAssocPublic02:
+
+# routeTables & setting end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+# SecurityGroup
+
+  In80HTTPId:
+    Value: !Ref In80HTTP
+    Export:
+      Name: !Sub ${AWS::StackName}-ID-SG-In80HTTP
+
+# SecurityGroup end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+# ALB & setting
+
+  LoadBalancerId:
+    Value: !Ref LoadBalancer
+    Export:
+      Name: !Sub ${AWS::StackName}-ID-ELB-ALB
+
+# ALB & setting end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+# etc.
+
+  # ProjectId:
+  #   Value: !Sub ${AWS::StackName}
+  #   Export:
+  #     Name: !Sub ${AWS::StackName}-ID
+
+# etc.
+#--------------------------------------------------|--------------------------------------------------#
