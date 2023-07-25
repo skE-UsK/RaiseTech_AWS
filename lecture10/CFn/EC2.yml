@@ -193,9 +193,6 @@ Resources:
   # InALB:
   # In22SSH:
   # OutAllId:
-  #   Value: !Ref OutAll
-  #   Export:
-  #     Name: !Sub ${ProjectName}Id-OutAll
 
 # SecurityGroup end
 #--------------------------------------------------|--------------------------------------------------#
@@ -212,9 +209,6 @@ Resources:
 # EC2 
 
   # EC2InstanceId:
-  #   Value: !Ref EC2Instance
-  #   Export:
-  #     Name: !Sub ${ProjectName}-ID-EC2
 
 # EC2 end
 #--------------------------------------------------|--------------------------------------------------#
