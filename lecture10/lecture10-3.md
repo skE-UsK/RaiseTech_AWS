@@ -166,7 +166,11 @@ Resources:
       StorageEncrypted: true
       KmsKeyId: !GetAtt KmsKey.Arn
 ```
-やってない。  
+~~やってない。~~
+
+AWSが用意しているマネージドキーを使えばいいだけだったので追加した。  
+AWS::KMS::Keyは使っていない。  
+その他、パラメータを使ってArnを入力するようにした。  
 
 AWS::KMS::Keyプロパティを[一覧で見る](resourcelist/AWS::KMS::Key.md)  
 

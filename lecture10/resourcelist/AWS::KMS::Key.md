@@ -13,7 +13,9 @@ KeyPolicy: キーのポリシーを指定します。
 KeySpec: キーの仕様を指定します。対称暗号化キーの場合、SYMMETRIC_DEFAULTを指定します。  
 KeyUsage: キーの使用方法を指定します。対称暗号化キーの場合、ENCRYPT_DECRYPTを指定します。  
 
-MultiRegion: マルチリージョンキーかどうかを指定します。  
+MultiRegion: マルチリージョンキーかどうかを指定します。
+
+Origin: KMSキーのキーマテリアルの起源を指定します。
 
 PendingWindowInDays: キー削除の保留期間（日数）を指定します。  
 

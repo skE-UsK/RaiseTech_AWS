@@ -29,15 +29,19 @@ Metadata:
           - SelectAZ
 
       - Label:
+          default: Please specify the ARN of the KMS key
+        Parameters:
+          - KmsKeyArn    
+
+      - Label:
           default: Option
         Parameters:
           - DeletionPolicy
           - UpdateReplacePolicy
           - BackupRetentionPeriod
 
-
 #--------------------------------------------------|--------------------------------------------------#
-                                            # Parameters
+                                              # Parameters
 #--------------------------------------------------|--------------------------------------------------#
 
 Parameters:
@@ -58,6 +62,11 @@ Parameters:
       - 1
       Default: 0
       Description: Select where to create RDS. An array that lists Availability Zones for region.
+
+  KmsKeyArn:
+    NoEcho: 'true'
+    Type: String
+    Default: ''
 
   DeletionPolicy:
     Type: String
@@ -83,7 +92,7 @@ Parameters:
     Description: BackupRetentionPeriod specifies the number of days to retain automated backups of a database instance.
 
 #--------------------------------------------------|--------------------------------------------------#
-                                            # Resources
+                                              # Resources
 #--------------------------------------------------|--------------------------------------------------#
 
 Resources:
@@ -168,6 +177,8 @@ Resources:
       EngineVersion: "8.0.32"
       MasterUsername: admin
       MasterUserPassword: !Sub ${RDSPassword}
+      StorageEncrypted: true
+      KmsKeyId: !Ref KmsKeyArn
       AllocatedStorage: 20
       BackupRetentionPeriod: !Ref BackupRetentionPeriod
       DBName: !Sub ${ProjectName}_RDS
@@ -181,18 +192,10 @@ Resources:
 #--------------------------------------------------|--------------------------------------------------#
 
 #--------------------------------------------------|--------------------------------------------------#
-                                              # Out put
+                                                # Output
 #--------------------------------------------------|--------------------------------------------------#
 
 Outputs:
-
-#--------------------------------------------------|--------------------------------------------------#
-# DBSubnetGroup
-
-# DBSubnetGroup:
-
-# DBSubnetGroup end
-#--------------------------------------------------|--------------------------------------------------#
 
 #--------------------------------------------------|--------------------------------------------------#
 # SecurityGroup
@@ -201,17 +204,6 @@ Outputs:
     Value: !Ref EC2toRDS
     Export:
       Name: !Sub ${ProjectName}-ID-SG-EC2toRDS
-  # RDSfromEC2:
-  # EC2toRDSSecurityGroupEgress:
 
 # SecurityGroup end
 #--------------------------------------------------|--------------------------------------------------#
-
-#--------------------------------------------------|--------------------------------------------------#
-# RDS
-
-  # RDSInstance:
-
-# RDS end
-#--------------------------------------------------|--------------------------------------------------#
-
