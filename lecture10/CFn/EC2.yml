@@ -1,0 +1,182 @@
+#--------------------------------------------------|--------------------------------------------------#
+                                      # AWSTemplateFormatVersion
+#--------------------------------------------------|--------------------------------------------------#
+
+AWSTemplateFormatVersion: '2010-09-09'
+
+#--------------------------------------------------|--------------------------------------------------#
+                                            # Description:
+#--------------------------------------------------|--------------------------------------------------#
+
+Description: EC2
+
+#--------------------------------------------------|--------------------------------------------------#
+                                              # Metadata
+#--------------------------------------------------|--------------------------------------------------#
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Select the project name
+        Parameters:
+          - ProjectName
+
+      - Label:
+          default: EC2 parameters setting
+        Parameters:
+          - OS
+
+#--------------------------------------------------|--------------------------------------------------#
+                                              # Parameters
+#--------------------------------------------------|--------------------------------------------------#
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Select the stack name you want to add
+
+  OS:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-kernel-5.10-hvm-x86_64-gp2"
+    Description: OS location or AMI ID
+
+#--------------------------------------------------|--------------------------------------------------#
+                                              # Resources
+#--------------------------------------------------|--------------------------------------------------#
+
+Resources:
+
+#--------------------------------------------------|--------------------------------------------------#
+# SecurityGroup
+ 
+  InALB:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: 
+        Fn::ImportValue: !Sub ${ProjectName}-ID-VPC
+      GroupName: 'InALB@EC2'
+      GroupDescription: InALB@EC2
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: 
+            Fn::ImportValue: !Sub ${ProjectName}-ID-SG-In80HTTP
+      Tags:
+        - Key: Name
+          Value: !Sub "[${ProjectName}]InALB@EC2"
+
+  In22SSH:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: 
+        Fn::ImportValue: !Sub ${ProjectName}-ID-VPC
+      GroupName: 'InSSH(22)@EC2'
+      GroupDescription: InHTTP(22)@EC2
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub "[${ProjectName}]InSSH(22)@EC2"
+
+  OutAll:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: 
+        Fn::ImportValue: !Sub ${ProjectName}-ID-VPC
+      GroupName: 'OutAll'
+      GroupDescription: OutAll
+      SecurityGroupIngress: []
+      SecurityGroupEgress: 
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub "[${ProjectName}]OutAll"
+
+# SecurityGroup end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+# KeyPair
+
+  NewKeyPair:
+    Type: AWS::EC2::KeyPair
+    Properties:
+      KeyName: !Sub ${ProjectName}
+
+# KeyPair end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+# Role(S3FullAccess@EC2) is attached to EC2
+
+  EC2Roles:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - "S3FullAccess@EC2"
+
+# Role(S3FullAccess@EC2) is attached to EC2 end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+# EC2 
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      SubnetId: 
+        Fn::ImportValue: !Sub ${ProjectName}-ID-Subnet-Pub-AZa
+      ImageId: !Ref OS
+      KeyName: !Ref NewKeyPair
+      SecurityGroupIds: 
+        - !Ref InALB
+        - !Ref In22SSH
+        - Fn::ImportValue: !Sub ${ProjectName}-ID-SG-EC2toRDS
+        - Fn::ImportValue: !Sub ${ProjectName}-ID-SG-EC2toS3
+        - !Ref OutAll
+      IamInstanceProfile: !Ref EC2Roles
+      Tags: 
+        - Key: Name
+          Value: !Sub "${ProjectName}-EC2"
+
+# EC2 end
+#--------------------------------------------------|--------------------------------------------------#
+
+#--------------------------------------------------|--------------------------------------------------#
+# TargetGroup
+ 
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: 
+        Fn::ImportValue: !Sub ${ProjectName}-ID-ELB-ALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: 
+        Fn::ImportValue: !Sub ${ProjectName}-ID-VPC
+      Targets: 
+        - Id: !Ref EC2Instance
+      Port: 80
+      Protocol: HTTP
+      Name: !Sub ${ProjectName}-TargetGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${ProjectName}_TargetGroup
+
+# TargetGroup end
+#--------------------------------------------------|--------------------------------------------------#
